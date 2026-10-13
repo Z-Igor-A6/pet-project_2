@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
     }
   };
 
-  // Устанавливаем задержку в 10000 мс (10 секунд)
+  // Устанавливаем задержку в 15000 мс (15 секунд)
   setTimeout(() => {
     // 2. ОТДАЕМ НАШ JSON ПО ИСТЕЧЕНИИ ВРЕМЕНИ
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
