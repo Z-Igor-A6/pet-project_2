@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Адаптивная загрузка данных через Fetch</title>
+  <style>
+    /* 1. Базовые сбросы стилей и глобальные переменные */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f4f5f7;
+      color: #333;
+      line-height: 1.5;
+      padding: 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* 2. Адаптивный контейнер-карточка */
+    .container {
+      width: 100%;
+      max-width: 550px;
+      background: #ffffff;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    h2 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #111;
+      text-align: center;
+    }
+
+    /* 3. Адаптивный прогресс-бар */
+    #progressContainer {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 1.5rem 0;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 16px;
+      background-color: #eef2f5;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #007bff, #0056b3);
+      border-radius: 8px;
+      transition: width 5s linear; /* Идеально плавная анимация CSS на 5 секунд */
+    }
+
+    /* Текстовые статусы под прогресс-баром */
+    .status-text {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: #666;
+    }
+
+    /* 4. Адаптивный блок вывода JSON кода */
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none; /* Скрыт, пока данные не загрузятся */
+      max-height: 350px;
+      overflow-y: auto;
+    }
+
+    /* 5. Медиа-запросы для мобильных устройств */
+    @media (max-width: 480px) {
+      body {
+        padding: 0.5rem;
+        align-items: flex-start;
+      }
+
+      .container {
+        padding: 1.25rem 1rem;
+        border-radius: 8px;
+        box-shadow: none;
+      }
+
+      h2 {
+        font-size: 1.15rem;
+      }
+
+      .status-text {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 4px;
+      }
+      
+      pre {
+        font-size: 0.75rem;
+        padding: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Загрузка данных из API</h2>
+  
+  <div id="progressContainer">
+    <div class="progress-track">
+      <div id="progressFill" class="progress-fill"></div>
+    </div>
+    <div class="status-text">
+      <span id="statusLabel">Установка соединения...</span>
+      <span id="percentageLabel">0%</span>
+    </div>
+  </div>
+
+  <!-- Блок пустой по умолчанию, данные добавятся через JS -->
+  <pre id="result"></pre>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    const progressFill = document.getElementById('progressFill');
+    const statusLabel = document.getElementById('statusLabel');
+    const percentageLabel = document.getElementById('percentageLabel');
+    const resultBlock = document.getElementById('result');
+    const progressContainer = document.getElementById('progressContainer');
+
+    // Настройка времени под задержку сервера (5 секунд)
+    const totalSeconds = 5;
+
+    // 1. Функция запуска плавной CSS-анимации ползунка
+    const startProgressAnimation = () => {
+      return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          progressFill.style.width = '100%'; // Запускает CSS переход на 5 секунд
+          statusLabel.textContent = 'Загрузка данных...';
+          resolve();
+        });
+      });
+    };
+
+    // 2. Имитация тиканья процентов (только для визуального обновления текста)
+    let currentSecond = 0;
+    const percentageInterval = setInterval(() => {
+      currentSecond++;
+      const pct = Math.min(Math.round((currentSecond / totalSeconds) * 100), 100);
+      percentageLabel.textContent = `${pct}%`;
+      statusLabel.textContent = `Загрузка данных... Осталось примерно ${totalSeconds - currentSecond} сек.`;
+
+      if (currentSecond >= totalSeconds) {
+        clearInterval(percentageInterval);
+        statusLabel.textContent = 'Ожидание ответа от сервера...';
+      }
+    }, 1000);
+
+    // 3. Создаем таймаут-предохранитель для fetch (на 10 секунд)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    //там где может возникнуть потенциальное исклбючение
+    try {
+      // Запускаем анимацию ползунка
+      await startProgressAnimation();
+
+      // Делаем реальный асинхронный запрос к вашему Node.js серверу
+      const response = await fetch('http://localhost:3000', {
+        method: 'GET',
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ошибка сервера: ${response.status}`);
+      }
+
+      // Ждем парсинга JSON
+      const json = await response.json();
+
+      // 4. Выводим полученные данные на экран
+      resultBlock.textContent = JSON.stringify(json, null, 2);
+      resultBlock.style.display = 'block';
+
+    } catch (error) {
+      // Обработка ошибок сети или таймаута
+      resultBlock.textContent = error.name === 'AbortError' 
+        ? 'Ошибка: Превышено время ожидания ответа от сервера.' 
+        : `Произошла ошибка: ${error.message}`;
+      resultBlock.style.display = 'block';
+    } finally {
+      // 5. Очищаем все таймеры и скрываем блок загрузки
+      clearInterval(percentageInterval);
+      clearTimeout(timeoutId);
+      progressContainer.style.display = 'none';
+    }
+  });
+</script>
+
+</body>
+</html>
